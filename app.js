@@ -118,12 +118,12 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
             }
 
             // Insert new referral
-            const insertReferralSql = 'INSERT INTO referrals (user_id, twitter_id, referrer_user_id, referrer_twitter_id) VALUES (?, ?, ?, ?)';
+            const insertReferralSql = 'INSERT INTO referrals (user_id, twitter_id, referrer_user_id, referrer_twitter_id, earned_points) VALUES (?, ?, ?, ?, ?)';
             const userId = req.userId;
             const referrerUserId = "";  // Determine how to get this
             const referrerTwitterId = referral_id;
 
-            connection.query(insertReferralSql, [userId, twitter_id, referrerUserId, referrerTwitterId], (error, results) => {
+            connection.query(insertReferralSql, [userId, twitter_id, referrerUserId, referrerTwitterId, referralPoints], (error, results) => {
               if (error) {
                 return connection.rollback(() => {
                   connection.release();
@@ -179,7 +179,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
     // Handle case where there are no referrals yet
     const totalEarnedPoints = results[0].totalPoints || 0;
 
-    res.json({ "totalEarnedPoints":totalEarnedPoints });
+    res.json({ "totalEarnedPoints":totalEarnedPoints, "data":results });
   });
 });
 
