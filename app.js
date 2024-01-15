@@ -179,7 +179,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
     // Handle case where there are no referrals yet
     const totalEarnedPoints = results[0].totalPoints || 0;
 
-    res.json({ "totalEarnedPoints":totalEarnedPoints, "data":results });
+    res.json({ "totalEarnedPoints":totalEarnedPoints, data: userId });
   });
 });
 
