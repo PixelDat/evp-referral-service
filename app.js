@@ -169,17 +169,30 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
 app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) => {
   const userId = req.userId;  // Obtained from the authenticated user session
 
-  const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE user_id = ?';
+  // SQL to get twitter_id from users table
+  const getTwitterIdSql = 'SELECT twitter_id FROM users WHERE id = ?';
 
-  pool.query(getTotalPointsSql, [userId], (error, results) => {
+  pool.query(getTwitterIdSql, [userId], (error, results) => {
     if (error) {
       return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
-    console.log("userId ------->>>>>> ".userId);
-    // Handle case where there are no referrals yet
-    const totalEarnedPoints = results[0].totalPoints || 0;
 
-    res.json({ "totalEarnedPoints":totalEarnedPoints });
+    // Get the twitter_id from the results
+    const twitterId = results[0].twitter_id;
+
+    // SQL to get total points from referrals table using twitter_id
+    const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE twitter_id = ?';
+
+    pool.query(getTotalPointsSql, [twitterId], (error, results) => {
+      if (error) {
+        return res.status(500).json({ message: 'Internal server error', error: error.message });
+      }
+
+      // Handle case where there are no referrals yet
+      const totalEarnedPoints = results[0].totalPoints || 0;
+
+      res.json({ "totalEarnedPoints": totalEarnedPoints });
+    });
   });
 });
 
