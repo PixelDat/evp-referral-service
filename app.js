@@ -132,8 +132,8 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
               }
 
               // Update user points
-              const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
-              connection.query(updateUserPointsSql, [referralPoints, userId], (error, results) => {
+              const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE twitter_id = ?';
+              connection.query(updateUserPointsSql, [referralPoints, referral_id], (error, results) => {
                 if (error) {
                   return connection.rollback(() => {
                     connection.release();
@@ -179,7 +179,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
     // Handle case where there are no referrals yet
     const totalEarnedPoints = results[0].totalPoints || 0;
 
-    res.json({ "totalEarnedPoints":totalEarnedPoints, data: userId });
+    res.json({ "totalEarnedPoints":totalEarnedPoints });
   });
 });
 
