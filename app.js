@@ -175,7 +175,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
     if (error) {
       return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
-
+    console.log("userId ------->>>>>> ".userId);
     // Handle case where there are no referrals yet
     const totalEarnedPoints = results[0].totalPoints || 0;
 
