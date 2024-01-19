@@ -177,6 +177,9 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
       return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 
+    console.log("Here ---- ");
+    console.log(results);
+
     // Get the twitter_id from the results
     const twitterId = results[0].twitter_id;
 
