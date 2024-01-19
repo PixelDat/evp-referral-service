@@ -182,7 +182,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
     const twitterId = results[0].twitter_id;
 
     // SQL to get total points from referrals table using twitter_id
-    const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE twitter_id = ?';
+    const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE referrer_twitter_id = ?';
 
     pool.query(getTotalPointsSql, [twitterId], (error, results) => {
       if (error) {
