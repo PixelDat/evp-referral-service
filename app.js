@@ -170,15 +170,13 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
   const userId = req.userId;  // Obtained from the authenticated user session
 
   // SQL to get twitter_id from users table
-  const getTwitterIdSql = 'SELECT twitter_id FROM users WHERE id = ?';
+  const getTwitterIdSql = 'SELECT twitter_id FROM users WHERE user_id = ?';
 
   pool.query(getTwitterIdSql, [userId], (error, results) => {
     if (error) {
       return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 
-    console.log("Here ---- ");
-    console.log(results);
 
     // Get the twitter_id from the results
     const twitterId = results[0].twitter_id;
