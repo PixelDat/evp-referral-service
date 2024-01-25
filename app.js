@@ -83,6 +83,7 @@ const checkAuth = async (req, res, next) => {
 
 app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
   const { twitter_id, referral_id } = req.body;
+  console.log(twitter_id+" -------++++++++++-------- "+referral_id);
   const referralPoints = parseFloat(process.env.REFERRAL_POINTS);
 
   // Check for required data
