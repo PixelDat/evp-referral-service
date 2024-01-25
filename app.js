@@ -131,10 +131,6 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
                 });
               }
 
-              console.log("[]---->");
-              console.log(referralPoints);
-              console.log("/[]---->");
-
               // Update user points
               const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE twitter_id = ?';
               connection.query(updateUserPointsSql, [referralPoints, referral_id], (error, results) => {
