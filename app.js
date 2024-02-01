@@ -198,6 +198,24 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
 });
 
 
+app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
+  try {
+    const userData = await getUserFullDataFromMySQL(req.userId);
+    if (!userData) {
+      return res.status(404).send('User not found');
+    }
+
+    const refLink = `https://everpump.io/refID=${userData.twitter_id}`;
+    const refMessage = process.env.REF_MESSAGE;
+
+    return res.status(200).json({ refLink, refMessage });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error fetching refLink ' + error);
+  }
+});
+
+
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
