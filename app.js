@@ -199,21 +199,26 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
 
 
 app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
-  try {
-    const userData = await getUserFullDataFromMySQL(req.userId);
-    if (!userData) {
+  const userId = req.userId;  // This is set in your checkAuth middleware
+  const getUserDataSql = 'SELECT * FROM users WHERE user_id = ?';
+
+  pool.query(getUserDataSql, [userId], (error, results) => {
+    if (error) {
+      console.error(error);
+      return res.status(500).send('Error fetching user data');
+    }
+    if (results.length === 0) {
       return res.status(404).send('User not found');
     }
-
-    const refLink = `https://everpump.io/refID=${userData.twitter_id}`;
+    
+    const userData = results[0]; // Assuming user_id is unique, there should only be one result.
+    const refLink = `https://everpump.io/refID=${userData.twitter_id}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
 
     return res.status(200).json({ refLink, refMessage });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send('Error fetching refLink ' + error);
-  }
+  });
 });
+
 
 
 
