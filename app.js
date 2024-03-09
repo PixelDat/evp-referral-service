@@ -81,6 +81,38 @@ const checkAuth = async (req, res, next) => {
 };
 
 
+const fastCheckAuth = async (req, res, next) => {
+  try {
+  const sessionId = req.sessionId;
+
+  if (!sessionId) {
+    return res.status(401).json({ message: 'Session ID is missing' });
+  }
+
+  const query = 'SELECT user_id, role, username FROM users WHERE session_id = ?';
+
+  pool.query(query, [sessionId], (error, results) => {
+    if (error) {
+      return next(error); // Pass the error to the central error handler
+    }
+
+    if (results.length > 0) {
+      const user = results[0];
+      
+      req.userId = user.user_id;
+      req.userRole = user.role; // Store user role
+      req.username = user.username;
+      next();
+    } else {
+      res.status(404).send('User not authenticated');
+    }
+  });
+} catch (error) {
+  next(error);
+}
+};
+
+
 app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
   const { twitter_id, referral_id } = req.body;
   const referralPoints = parseFloat(process.env.REFERRAL_POINTS);
@@ -166,7 +198,7 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
 
 
 // Endpoint to get total referral earned points
-app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) => {
+app.get('/get-total-referral-earned-points', verifyToken, fastCheckAuth, (req, res) => {
   const userId = req.userId;  // Obtained from the authenticated user session
 
   // SQL to get twitter_id from users table
@@ -198,7 +230,7 @@ app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) 
 });
 
 
-app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
+app.get('/get-refLink', verifyToken, fastCheckAuth, async (req, res) => {
   const userId = req.userId;  // This is set in your checkAuth middleware
   const getUserDataSql = 'SELECT * FROM users WHERE user_id = ?';
 
