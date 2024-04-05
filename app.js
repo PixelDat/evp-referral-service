@@ -60,28 +60,8 @@ const verifyToken = (req, res, next) => {
 };
 
 // Middleware to check authentication
+
 const checkAuth = async (req, res, next) => {
-  try {
-    const response = await axios.get(process.env.checkAuth_SERVICE_ENDPOINT, {
-      headers: {
-        Authorization: req.sessionId
-      }
-    });
-    if (response.data.isAuthenticated) {
-      req.userId = response.data.user_id;
-      req.userRole = response.data.role; // Store user role
-      req.username = response.data.username; // Store username
-      next();
-    } else {
-      return res.status(401).json({ message: 'User not authenticated' });
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-const fastCheckAuth = async (req, res, next) => {
   try {
   const sessionId = req.sessionId;
 
@@ -198,7 +178,7 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
 
 
 // Endpoint to get total referral earned points
-app.get('/get-total-referral-earned-points', verifyToken, fastCheckAuth, (req, res) => {
+app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) => {
   const userId = req.userId;  // Obtained from the authenticated user session
 
   // SQL to get twitter_id from users table
@@ -230,7 +210,7 @@ app.get('/get-total-referral-earned-points', verifyToken, fastCheckAuth, (req, r
 });
 
 
-app.get('/get-refLink', verifyToken, fastCheckAuth, async (req, res) => {
+app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
   const userId = req.userId;  // This is set in your checkAuth middleware
   const getUserDataSql = 'SELECT * FROM users WHERE user_id = ?';
 
