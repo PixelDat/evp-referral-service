@@ -24,7 +24,7 @@ const pool = mysql.createPool({
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
   socketPath: process.env.SOCKET_PATH
-});
+}).promise();
 
 // Caching setup
 const userCache = new NodeCache({ stdTTL: 100, checkperiod: 120 });
@@ -235,46 +235,43 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields or invalid referral points configuration' });
   }
 
-  pool.getConnection(async (err, connection) => {
-    if (err) {
-      console.error('Error getting connection from pool:', err);
-      return res.status(500).json({ message: 'Failed to connect to database' });
+  let connection;
+  try {
+    // Get a connection from the pool
+    connection = await pool.getConnection();
+
+    await connection.beginTransaction();
+
+    // Retrieve the referrer's user_id using the provided refID
+    const [referrer] = await connection.query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
+    if (referrer.length === 0) {
+      throw new Error('Referrer not found');
+    }
+    const referrerUserId = referrer[0].user_id;
+
+    // Check if a referral already exists for this user
+    const [existingReferral] = await connection.query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
+    if (existingReferral.length > 0) {
+      throw new Error('Referral already exists for this user');
     }
 
-    try {
-      await connection.beginTransaction();
+    // Insert new referral and update user points
+    await connection.query('INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)', [userId, referrerUserId, referralPoints]);
 
-      // Retrieve the referrer's user_id
-      const [referrer] = await connection.promise().query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
-      if (referrer.length === 0) {
-        throw new Error('Referrer not found');
-      }
-      const referrerUserId = referrer[0].user_id;
+    await connection.query('UPDATE users SET points = points + ? WHERE user_id = ?', [referralPoints, userId]);
 
-      // Check if a referral already exists for this user
-      const [existingReferral] = await connection.promise().query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
-      if (existingReferral.length > 0) {
-        throw new Error('Referral already exists for this user');
-      }
-
-      // Insert new referral and update user points
-      const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
-      await connection.promise().query(insertReferralSql, [userId, referrerUserId, referralPoints]);
-
-      const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
-      await connection.promise().query(updateUserPointsSql, [referralPoints, userId]);
-
-      await connection.commit();
-      res.status(201).json({ message: 'Referral registered successfully' });
-    } catch (error) {
-      console.error('Error during referral registration:', error);
-      await connection.rollback();
-      res.status(500).json({ message: 'Failed to register referral', error: error.message });
-    } finally {
-      connection.release();
-    }
-  });
+    // Commit the transaction
+    await connection.commit();
+    res.status(201).json({ message: 'Referral registered successfully' });
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error('Error during referral registration:', error);
+    res.status(500).json({ message: 'Failed to register referral', error: error.message });
+  } finally {
+    if (connection) await connection.release();
+  }
 });
+
 
 
 
