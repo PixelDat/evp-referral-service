@@ -243,39 +243,39 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
     }
 
     try {
-      await connection.beginTransaction();
-
       // Retrieve the referrer's user_id
       const [referrer] = await connection.promise().query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
       if (referrer.length === 0) {
-        throw new Error('Referrer not found');
+        connection.release();
+        return res.status(404).json({ message: 'Referrer not found' });
       }
       const referrerUserId = referrer[0].user_id;
 
       // Check if a referral already exists for this user
       const [existingReferral] = await connection.promise().query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
       if (existingReferral.length > 0) {
-        throw new Error('Referral already exists for this user');
+        connection.release();
+        return res.status(409).json({ message: 'Referral already exists for this user' });
       }
 
-      // Insert new referral and update user points
+      // Insert new referral
       const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
       await connection.promise().query(insertReferralSql, [userId, referrerUserId, referralPoints]);
 
+      // Update user points
       const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
       await connection.promise().query(updateUserPointsSql, [referralPoints, userId]);
 
-      await connection.commit();
       res.status(201).json({ message: 'Referral registered successfully' });
     } catch (error) {
       console.error('Error during referral registration:', error);
-      await connection.rollback();
       res.status(500).json({ message: 'Failed to register referral', error: error.message });
     } finally {
       connection.release();
     }
   });
 });
+
 
 
 
