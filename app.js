@@ -92,127 +92,207 @@ const checkAuth = async (req, res, next) => {
 }
 };
 
-
-app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
-  const { twitter_id, referral_id } = req.body;
-  const referralPoints = parseFloat(process.env.REFERRAL_POINTS);
-
-  // Check for required data
-  if (!twitter_id || !referral_id) {
-    return res.status(400).json({ message: 'Missing required fields' });
-  }
-
-  if (isNaN(referralPoints)) {
-    return res.status(500).json({ message: 'Invalid referral points configuration' });
-  }
-
-  try {
-    // Check if referral already exists for the given twitter_id
-    const checkReferralSql = 'SELECT * FROM referrals WHERE twitter_id = ?';
-    pool.query(checkReferralSql, [twitter_id], (error, results) => {
-      if (error) {
-        throw error;
-      }
-      
-      if (results.length > 0) {
-        // Referral already exists
-        return res.status(409).json({ message: 'Referral already exists for this Twitter ID' });
+async function checkReferralExsistence(user_id) {
+  return new Promise((resolve, reject) => {
+    const query = 'SELECT user_id FROM users_refIDs WHERE user_id = ?';
+    pool.query(query, [user_id], (err, results) => {
+      if (err) {
+        console.error('MySQL Database Error:', err);
+        reject(err);
       } else {
-        // Transaction for inserting referral and updating user points
-        pool.getConnection((err, connection) => {
-          if (err) throw err;
-
-          // Start transaction
-          connection.beginTransaction(err => {
-            if (err) {
-              connection.release();
-              throw err;
-            }
-
-            // Insert new referral
-            const insertReferralSql = 'INSERT INTO referrals (user_id, twitter_id, referrer_user_id, referrer_twitter_id, earned_points) VALUES (?, ?, ?, ?, ?)';
-            const userId = req.userId;
-            const referrerUserId = "";  // Determine how to get this
-            const referrerTwitterId = referral_id;
-
-            connection.query(insertReferralSql, [userId, twitter_id, referrerUserId, referrerTwitterId, referralPoints], (error, results) => {
-              if (error) {
-                return connection.rollback(() => {
-                  connection.release();
-                  throw error;
-                });
-              }
-
-              // Update user points
-              const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE twitter_id = ?';
-              connection.query(updateUserPointsSql, [referralPoints, referral_id], (error, results) => {
-                if (error) {
-                  return connection.rollback(() => {
-                    connection.release();
-                    throw error;
-                  });
-                }
-
-                // Commit transaction
-                connection.commit(err => {
-                  if (err) {
-                    return connection.rollback(() => {
-                      connection.release();
-                      throw err;
-                    });
-                  }
-
-                  connection.release();
-                  res.status(201).json({ message: 'Referral registered successfully', referralId: results.insertId });
-                });
-              });
-            });
-          });
-        });
+        resolve(results[0]); // Assuming session_id is unique and returns a single row
       }
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+  });
+}
+
+// Create a new mining account
+app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) => {
+  const userId = req.userId;
+  const refID = uuid.v4();
+  const exsistingAccount = await checkReferralExsistence(req.userId);
+    if (exsistingAccount) {
+      return res.status(200).json({ message: 'Account Already Created' });
   }
+  // Prepare the insert query to use MINNE_AMOUNT for the initial points
+  const insertQuery = `INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)`;
+
+  // Execute the query with the initialPoints and other values
+  pool.query(insertQuery, [userId, refID], (error, results) => {
+      if (error) {
+          return res.status(500).json({ message: 'Failed to create Referral account', error });
+      }
+      res.json({ message: 'Referral account created successfully', accountId: results.insertId });
+  });
+
 });
 
 
-// Endpoint to get total referral earned points
-app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) => {
-  const userId = req.userId;  // Obtained from the authenticated user session
 
-  // SQL to get twitter_id from users table
-  const getTwitterIdSql = 'SELECT twitter_id FROM users WHERE user_id = ?';
+app.post('/reg-potential-referrals', async (req, res) => {
+  const { _genID, _refID } = req.body;
 
-  pool.query(getTwitterIdSql, [userId], (error, results) => {
+  // Input validation
+  if (!_genID || !_refID) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  // Assuming you have a function to sanitize input or using prepared statements
+  const sanitizedGenID = _genID; // Implement actual sanitization
+  const sanitizedRefID = _refID; // Implement actual sanitization
+
+  // Prepare the insert query
+  const insertQuery = `INSERT INTO potential_referrals (genID, refID, confirmed) VALUES (?, ?, false)`;
+
+  // Execute the query
+  pool.query(insertQuery, [sanitizedGenID, sanitizedRefID], (error, results) => {
     if (error) {
-      return res.status(500).json({ message: 'Internal server error', error: error.message });
+      console.error(error);
+      return res.status(500).json({ message: 'Failed to register potential referral', error: error.message });
     }
+    res.json({ message: 'Potential referral registered successfully', insertId: results.insertId });
+  });
+});
 
 
-    // Get the twitter_id from the results
-    const twitterId = results[0].twitter_id;
+app.post('/confirm-potential-referrals', checkAuth, async (req, res) => {
+  const { _genID, _refID } = req.body;
+  const _referee_user_id = req.userId; // Assuming checkAuth middleware sets `req.userId`
 
-    // SQL to get total points from referrals table using twitter_id
-    const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE referrer_twitter_id = ?';
+  // Input validation
+  if (!_genID || !_refID) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
 
-    pool.query(getTotalPointsSql, [twitterId], (error, results) => {
+  // First, find the referrer's user_id by _refID
+  const getReferrerUserIdQuery = 'SELECT user_id FROM users_refIDs WHERE refID = ?';
+  pool.query(getReferrerUserIdQuery, [_refID], (error, results) => {
+    if (error) {
+      return res.status(500).json({ message: 'Error fetching referrer user ID', error: error.message });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'Referrer not found' });
+    }
+    const _referrer_user_id = results[0].user_id;
+
+    // Then, confirm the potential referral
+    const confirmReferralQuery = `UPDATE potential_referrals SET confirmed = true, referee_user_id = ?, referrer_user_id = ? WHERE genID = ? AND refID = ?`;
+    pool.query(confirmReferralQuery, [_referee_user_id, _referrer_user_id, _genID, _refID], (error, results) => {
       if (error) {
-        return res.status(500).json({ message: 'Internal server error', error: error.message });
+        return res.status(500).json({ message: 'Failed to confirm potential referral', error: error.message });
       }
-
-      // Handle case where there are no referrals yet
-      const totalEarnedPoints = results[0].totalPoints || 0;
-
-      res.json({ "totalEarnedPoints": totalEarnedPoints });
+      if (results.affectedRows === 0) {
+        return res.status(404).json({ message: 'Potential referral not found or already confirmed' });
+      }
+      res.json({ message: 'Potential referral confirmed successfully' });
     });
   });
 });
 
 
+app.get('/get-referrer-refID', checkAuth, async (req, res) => {
+  const userId = req.userId;  // Set by checkAuth middleware
+
+  // SQL query to find the refID of the user's referrer
+  // Ensure that the referral is confirmed
+  const query = `
+    SELECT ur.refID FROM users_refIDs ur
+    JOIN potential_referrals pr ON ur.user_id = pr.referrer_user_id
+    WHERE pr.referee_user_id = ? AND pr.confirmed = true
+  `;
+
+  pool.query(query, [userId], (error, results) => {
+    if (error) {
+      console.error(error);
+      return res.status(500).send('Error fetching referrer refID');
+    }
+    if (results.length === 0) {
+      return res.status(404).send('Referrer not found or referral not confirmed');
+    }
+    
+    // Assuming each user can be referred by only one referrer, so taking the first result
+    const refID = results[0].refID;
+    res.status(200).json({ referrerRefID: refID });
+  });
+});
+
+
+
+
+app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
+  const { refID } = req.body;
+  const referralPoints = parseFloat(process.env.REFERRAL_POINTS);
+  const userId = req.userId; // Set by checkAuth middleware
+
+  if (!refID || isNaN(referralPoints)) {
+    return res.status(400).json({ message: 'Missing required fields or invalid referral points configuration' });
+  }
+
+  pool.getConnection(async (err, connection) => {
+    if (err) {
+      console.error('Error getting connection from pool:', err);
+      return res.status(500).json({ message: 'Failed to connect to database' });
+    }
+
+    try {
+      await connection.beginTransaction();
+
+      // Retrieve the referrer's user_id
+      const [referrer] = await connection.promise().query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
+      if (referrer.length === 0) {
+        throw new Error('Referrer not found');
+      }
+      const referrerUserId = referrer[0].user_id;
+
+      // Check if a referral already exists for this user
+      const [existingReferral] = await connection.promise().query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
+      if (existingReferral.length > 0) {
+        throw new Error('Referral already exists for this user');
+      }
+
+      // Insert new referral and update user points
+      const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
+      await connection.promise().query(insertReferralSql, [userId, referrerUserId, referralPoints]);
+
+      const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
+      await connection.promise().query(updateUserPointsSql, [referralPoints, userId]);
+
+      await connection.commit();
+      res.status(201).json({ message: 'Referral registered successfully' });
+    } catch (error) {
+      console.error('Error during referral registration:', error);
+      await connection.rollback();
+      res.status(500).json({ message: 'Failed to register referral', error: error.message });
+    } finally {
+      connection.release();
+    }
+  });
+});
+
+
+
+// Endpoint to get total referral earned points
+app.get('/get-total-referral-earned-points', verifyToken, checkAuth, (req, res) => {
+  const userId = req.userId;  // Obtained from the authenticated user session
+ // SQL to get total points from referrals table using twitter_id
+ const getTotalPointsSql = 'SELECT SUM(earned_points) as totalPoints FROM referrals WHERE referrer_user_id = ?';
+
+ pool.query(getTotalPointsSql, [userId], (error, results) => {
+   if (error) {
+     return res.status(500).json({ message: 'Internal server error', error: error.message });
+   }
+
+   // Handle case where there are no referrals yet
+   const totalEarnedPoints = results[0].totalPoints || 0;
+
+   res.json({ "totalEarnedPoints": totalEarnedPoints });
+ });
+});
+
+
 app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
   const userId = req.userId;  // This is set in your checkAuth middleware
-  const getUserDataSql = 'SELECT * FROM users WHERE user_id = ?';
+  const getUserDataSql = 'SELECT refID FROM users_refIDs WHERE user_id = ?';
 
   pool.query(getUserDataSql, [userId], (error, results) => {
     if (error) {
@@ -224,7 +304,7 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
     }
     
     const userData = results[0]; // Assuming user_id is unique, there should only be one result.
-    const refLink = `https://everpump.io/refID=${userData.twitter_id}`; // Assuming twitter_id is a field in your users table.
+    const refLink = `https://everpump.io/refID=${userData.refID}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
 
     return res.status(200).json({ refLink, refMessage });
