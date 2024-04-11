@@ -155,7 +155,7 @@ app.post('/reg-potential-referrals', async (req, res) => {
 });
 
 
-app.post('/confirm-potential-referrals', checkAuth, async (req, res) => {
+app.post('/confirm-potential-referrals', verifyToken, checkAuth, async (req, res) => {
   const { _genID, _refID } = req.body;
   const _referee_user_id = req.userId; // Assuming checkAuth middleware sets `req.userId`
 
@@ -190,7 +190,7 @@ app.post('/confirm-potential-referrals', checkAuth, async (req, res) => {
 });
 
 
-app.get('/get-referrer-refID', checkAuth, async (req, res) => {
+app.get('/get-referrer-refID', verifyToken, checkAuth, async (req, res) => {
   const userId = req.userId;  // Set by checkAuth middleware
 
   // SQL query to find the refID of the user's referrer
