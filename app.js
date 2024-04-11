@@ -227,7 +227,7 @@ app.get('/get-referrer-refID', verifyToken, checkAuth, async (req, res) => {
 
 
 
-app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
+app.post('/register-referral', verifyToken, checkAuth, (req, res) => {
   const { refID } = req.body;
   const referralPoints = parseFloat(process.env.REFERRAL_POINTS);
   const userId = req.userId; // Set by checkAuth middleware
@@ -236,43 +236,83 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields or invalid referral points configuration' });
   }
 
-  pool.getConnection(async (err, connection) => {
+  pool.getConnection((err, connection) => {
     if (err) {
       console.error('Error getting connection from pool:', err);
       return res.status(500).json({ message: 'Failed to connect to database' });
     }
 
-    try {
+    connection.beginTransaction(err => {
+      if (err) {
+        connection.release();
+        console.error('Error starting transaction:', err);
+        return res.status(500).json({ message: 'Failed to start transaction' });
+      }
+
       // Retrieve the referrer's user_id
-      const [referrer] = await connection.promise().query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
-      if (referrer.length === 0) {
-        connection.release();
-        return res.status(404).json({ message: 'Referrer not found' });
-      }
-      const referrerUserId = referrer[0].user_id;
+      connection.query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID], (err, referrer) => {
+        if (err || referrer.length === 0) {
+          connection.rollback(() => {
+            connection.release();
+            console.error('Error fetching referrer:', err);
+            res.status(err ? 500 : 404).json({ message: err ? 'Failed to fetch referrer' : 'Referrer not found' });
+          });
+          return;
+        }
+        const referrerUserId = referrer[0].user_id;
 
-      // Check if a referral already exists for this user
-      const [existingReferral] = await connection.promise().query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
-      if (existingReferral.length > 0) {
-        connection.release();
-        return res.status(409).json({ message: 'Referral already exists for this user' });
-      }
+        // Check if a referral already exists for this user
+        connection.query('SELECT 1 FROM referrals WHERE user_id = ?', [userId], (err, existingReferral) => {
+          if (err || existingReferral.length > 0) {
+            connection.rollback(() => {
+              connection.release();
+              console.error('Error checking existing referral:', err);
+              res.status(err ? 500 : 400).json({ message: err ? 'Failed to check existing referral' : 'Referral already exists for this user' });
+            });
+            return;
+          }
 
-      // Insert new referral
-      const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
-      await connection.promise().query(insertReferralSql, [userId, referrerUserId, referralPoints]);
+          // Insert new referral and update user points
+          const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
+          connection.query(insertReferralSql, [userId, referrerUserId, referralPoints], (err) => {
+            if (err) {
+              connection.rollback(() => {
+                connection.release();
+                console.error('Error inserting referral:', err);
+                res.status(500).json({ message: 'Failed to insert referral' });
+              });
+              return;
+            }
 
-      // Update user points
-      const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
-      await connection.promise().query(updateUserPointsSql, [referralPoints, userId]);
+            const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
+            connection.query(updateUserPointsSql, [referralPoints, userId], (err) => {
+              if (err) {
+                connection.rollback(() => {
+                  connection.release();
+                  console.error('Error updating user points:', err);
+                  res.status(500).json({ message: 'Failed to update user points' });
+                });
+                return;
+              }
 
-      res.status(201).json({ message: 'Referral registered successfully' });
-    } catch (error) {
-      console.error('Error during referral registration:', error);
-      res.status(500).json({ message: 'Failed to register referral', error: error.message });
-    } finally {
-      connection.release();
-    }
+              connection.commit(err => {
+                if (err) {
+                  connection.rollback(() => {
+                    connection.release();
+                    console.error('Error committing transaction:', err);
+                    res.status(500).json({ message: 'Transaction commit failed' });
+                  });
+                  return;
+                }
+
+                connection.release();
+                res.status(201).json({ message: 'Referral registered successfully' });
+              });
+            });
+          });
+        });
+      });
+    });
   });
 });
 
