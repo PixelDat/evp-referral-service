@@ -359,6 +359,26 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
   });
 });
 
+// Endpoint to get the number of referees
+app.get('/get-number-of-referees', verifyToken, checkAuth, (req, res) => {
+  const userId = req.userId;  // This is set by the checkAuth middleware
+
+  // SQL query to count the number of referrals by the referrer_user_id
+  const countRefereesSql = 'SELECT COUNT(*) AS totalReferees FROM referrals WHERE referrer_user_id = ?';
+
+  pool.query(countRefereesSql, [userId], (error, results) => {
+    if (error) {
+      console.error('Error fetching total number of referees:', error);
+      return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+
+    // Assuming successful query execution, return the total number of referees
+    const totalReferees = results[0].totalReferees;
+    res.json({ totalReferees });
+  });
+});
+
+
 
 
 
