@@ -42,6 +42,7 @@ app.use(rateLimit({
   max: 100
 }));
 
+
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization;
@@ -122,6 +123,17 @@ async function isRefIDUnique(refID) {
   const query = 'SELECT COUNT(*) AS count FROM users_refIDs WHERE refID = ?';
   const [results] = await pool.promise().query(query, [refID]);
   return results[0].count === 0;
+}
+
+
+// Promise wrapper for MySQL query
+function queryAsync(sql, params) {
+  return new Promise((resolve, reject) => {
+    pool.query(sql, params, (err, results, fields) => {
+      if (err) reject(err);
+      else resolve(results);
+    });
+  });
 }
 
 // Create a new mining account
@@ -247,47 +259,39 @@ app.post('/register-referral', verifyToken, checkAuth, async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields or invalid referral points configuration' });
   }
 
-  pool.getConnection(async (err, connection) => {
-    if (err) {
-      console.error('Error getting connection from pool:', err);
-      return res.status(500).json({ message: 'Failed to connect to database' });
+  try {
+    const connection = await pool.getConnection();
+
+    await connection.beginTransaction();
+
+    // Retrieve the referrer's user_id
+    const referrerResults = await queryAsync('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
+    if (referrerResults.length === 0) {
+      throw new Error('Referrer not found');
+    }
+    const referrerUserId = referrerResults[0].user_id;
+
+    // Check if a referral already exists for this user
+    const existingReferralResults = await queryAsync('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
+    if (existingReferralResults.length > 0) {
+      throw new Error('Referral already exists for this user');
     }
 
-    try {
-      await connection.beginTransaction();
+    // Insert new referral and update user points
+    await queryAsync('INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)', [userId, referrerUserId, referralPoints]);
 
-      // Retrieve the referrer's user_id
-      const [referrer] = await connection.promise().query('SELECT user_id FROM users_refIDs WHERE refID = ?', [refID]);
-      if (referrer.length === 0) {
-        throw new Error('Referrer not found');
-      }
-      const referrerUserId = referrer[0].user_id;
+    await queryAsync('UPDATE users SET points = points + ? WHERE user_id = ?', [referralPoints, userId]);
 
-      // Check if a referral already exists for this user
-      const [existingReferral] = await connection.promise().query('SELECT 1 FROM referrals WHERE user_id = ?', [userId]);
-      if (existingReferral.length > 0) {
-        throw new Error('Referral already exists for this user');
-      }
-
-      // Insert new referral and update user points
-      const insertReferralSql = 'INSERT INTO referrals (user_id, referrer_user_id, earned_points) VALUES (?, ?, ?)';
-      await connection.promise().query(insertReferralSql, [userId, referrerUserId, referralPoints]);
-
-      const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
-      await connection.promise().query(updateUserPointsSql, [referralPoints, userId]);
-
-      await connection.commit();
-      res.status(201).json({ message: 'Referral registered successfully' });
-    } catch (error) {
-      console.error('Error during referral registration:', error);
-      await connection.rollback();
-      res.status(500).json({ message: 'Failed to register referral', error: error.message });
-    } finally {
-      connection.release();
-    }
-  });
+    await connection.commit();
+    res.status(201).json({ message: 'Referral registered successfully' });
+  } catch (error) {
+    console.error('Error during referral registration:', error);
+    if (connection) await connection.rollback();
+    res.status(500).json({ message: 'Failed to register referral', error: error.message });
+  } finally {
+    if (connection) connection.release();
+  }
 });
-
 
 
 // Endpoint to get total referral earned points
