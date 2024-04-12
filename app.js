@@ -352,7 +352,7 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
     }
     
     const userData = results[0]; // Assuming user_id is unique, there should only be one result.
-    const refLink = `https://everpump.io/GenRegRef/refID=${userData.refID}`; // Assuming twitter_id is a field in your users table.
+    const refLink = `https://everpump.io/GenRegRef?refID=${userData.refID}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
 
     return res.status(200).json({ refLink, refMessage });
