@@ -124,7 +124,7 @@ app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) =>
       }
 
       // Once a unique refID is generated, proceed with account creation
-      const insertQuery = `INSERT INTO users_refIDs (user_id, genID, refID) VALUES (?, ?, ?)`;
+      const insertQuery = `INSERT INTO users_refIDs (user_id, genID, refID) VALUES (?, ?)`;
       const userId = req.userId; // Assuming this is set by your authentication middleware
 
       pool.query(insertQuery, [userId , refID], (error, results) => {
