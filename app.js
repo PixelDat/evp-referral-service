@@ -106,11 +106,8 @@ function generateRefID() {
 
 // Function to check if the generated refID is unique
 async function isRefIDUnique(refID) {
-  const query = 'SELECT COUNT(*) AS count FROM users_refIDs WHERE refID = ?';
- 
-  pool.query(query, [refID], (error, results) => {
-    return results[0].count === 0;
-  });
+  const results = await queryPromise('SELECT COUNT(*) AS count FROM users_refIDs WHERE refID = ?', [refID]);
+  return results[0].count === 0;
 }
 
 
@@ -118,30 +115,26 @@ async function isRefIDUnique(refID) {
 // Create a new mining account
 app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) => {
   try {
-      let unique = false;
-      let _refID;
-      while (!unique) {
-        _refID = generateRefID();
-          unique = await isRefIDUnique(_refID);
-      }
+    let unique = false;
+    let refID;
 
-      // Once a unique refID is generated, proceed with account creation
-      const insertQuery = `INSERT INTO users_refIDs (user_id, genID, refID) VALUES (?, ?, ?)`;
-      const userId = req.userId; // Assuming this is set by your authentication middleware
+    while (!unique) {
+      refID = generateRefID();
+      unique = await isRefIDUnique(refID);
+    }
 
-      pool.query(insertQuery, [userId , sanitizedGenID, sanitizedRefID], (error, results) => {
-        if (error) {
-          console.error(error);
-          res.status(500).json({ message: 'Failed to create referral account', error: error.message });
-        }else{
-          res.json({ message: 'Referral account created successfully', refID: _refID });
-        }
-      });
+    const userId = req.user.user_id;
+    await queryPromise('INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)', [userId, refID]);
 
+    res.json({ message: 'Referral account created successfully', refID });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Failed to create referral account', error: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Failed to create referral account', error: error.message });
   }
+});
+
+app.listen(process.env.APP_PORT || 8080, () => {
+  console.log(`Server listening on port ${process.env.APP_PORT || 8080}`);
 });
 
 
