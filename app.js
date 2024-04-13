@@ -120,14 +120,14 @@ app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) =>
       let refID;
       while (!unique) {
           refID = generateRefID();
-          unique = await isRefIDUnique(refID);
+          unique = await isRefIDUnique(refID); // Ensure this function is properly handling promises
       }
 
       // Once a unique refID is generated, proceed with account creation
       const insertQuery = `INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)`;
       const userId = req.userId; // Assuming this is set by your authentication middleware
 
-      await pool.promise().query(insertQuery, [userId, refID]);
+      await pool.query(insertQuery, [userId, refID]);
       res.json({ message: 'Referral account created successfully', refID });
   } catch (error) {
       console.error(error);
