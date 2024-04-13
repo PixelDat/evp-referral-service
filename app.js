@@ -107,8 +107,10 @@ function generateRefID() {
 // Function to check if the generated refID is unique
 async function isRefIDUnique(refID) {
   const query = 'SELECT COUNT(*) AS count FROM users_refIDs WHERE refID = ?';
-  const [results] = await pool.promise().query(query, [refID]);
-  return results[0].count === 0;
+ 
+  pool.query(query, [refID], (error, results) => {
+    return results[0].count === 0;
+  });
 }
 
 
