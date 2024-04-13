@@ -127,7 +127,7 @@ app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) =>
       const insertQuery = `INSERT INTO users_refIDs (user_id, genID, refID) VALUES (?, ?, ?)`;
       const userId = req.userId; // Assuming this is set by your authentication middleware
 
-      pool.query(insertQuery, [userId , sanitizedGenID, sanitizedRefID], (error, results) => {
+      pool.query(insertQuery, [userId , refID], (error, results) => {
         if (error) {
           console.error(error);
           res.status(500).json({ message: 'Failed to create referral account', error: error.message });
