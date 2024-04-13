@@ -116,31 +116,40 @@ async function isRefIDUnique(refID) {
 // Create a new mining account
 app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) => {
   try {
-      let unique = false;
-      let refID;
-      while (!unique) {
-          refID = generateRefID();
-          unique = await isRefIDUnique(refID);
+    const userId = req.userId; // Assuming this is set by your authentication middleware
+
+    // First, check if a referral account already exists for the user
+    const existingRefQuery = 'SELECT refID FROM users_refIDs WHERE user_id = ?';
+    const [existingRefs] = await pool.promise().query(existingRefQuery, [userId]);
+
+    if (existingRefs.length > 0) {
+      // User already has a referral account
+      return res.status(400).json({ message: 'Referral account already exists for this user', refID: existingRefs[0].refID });
+    }
+
+    // If no existing referral account, generate a unique refID
+    let unique = false;
+    let refID;
+    while (!unique) {
+      refID = generateRefID();
+      unique = await isRefIDUnique(refID);
+    }
+
+    // Once a unique refID is generated, proceed with account creation
+    const insertQuery = `INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)`;
+    pool.query(insertQuery, [userId, refID], (error, results) => {
+      if (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Failed to create referral account', error: error.message });
       }
-
-      // Once a unique refID is generated, proceed with account creation
-      const insertQuery = `INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)`;
-      const userId = req.userId; // Assuming this is set by your authentication middleware
-
-      pool.query(insertQuery, [userId , refID], (error, results) => {
-        if (error) {
-          console.error(error);
-          res.status(500).json({ message: 'Failed to create referral account', error: error.message });
-        }else{
-          res.json({ message: 'Referral account created successfully', refID: refID });
-        }
-      });
-
+      res.json({ message: 'Referral account created successfully', refID: refID });
+    });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Failed to create referral account', error: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Failed to create referral account', error: error.message });
   }
 });
+
 
 
 
