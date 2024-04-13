@@ -117,22 +117,22 @@ async function isRefIDUnique(refID) {
 app.post('/create-referral-account', verifyToken, checkAuth, async (req, res) => {
   try {
       let unique = false;
-      let refID;
+      let _refID;
       while (!unique) {
-          refID = generateRefID();
-          unique = await isRefIDUnique(refID);
+        _refID = generateRefID();
+          unique = await isRefIDUnique(_refID);
       }
 
       // Once a unique refID is generated, proceed with account creation
-      const insertQuery = `INSERT INTO users_refIDs (user_id, refID) VALUES (?, ?)`;
+      const insertQuery = `INSERT INTO users_refIDs (user_id, genID, refID) VALUES (?, ?, ?)`;
       const userId = req.userId; // Assuming this is set by your authentication middleware
 
-      pool.query(insertQuery, [sanitizedGenID, sanitizedRefID], (error, results) => {
+      pool.query(insertQuery, [userId , sanitizedGenID, sanitizedRefID], (error, results) => {
         if (error) {
           console.error(error);
           res.status(500).json({ message: 'Failed to create referral account', error: error.message });
         }else{
-          res.json({ message: 'Referral account created successfully', refID: refID });
+          res.json({ message: 'Referral account created successfully', refID: _refID });
         }
       });
 
