@@ -60,7 +60,6 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-// Middleware to check authentication
 
 // Middleware to check authentication
 const checkAuth = async (req, res, next) => {
