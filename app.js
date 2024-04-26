@@ -324,6 +324,36 @@ app.post('/register-referral', verifyToken, checkAuth, (req, res) => {
                 return;
               }
 
+              
+              
+
+              // Parse the mining rate boost from the environment variable
+              const miningRateBoost = parseFloat(process.env.MINING_RATE_BOOST);
+              if (isNaN(miningRateBoost)) {
+                connection.rollback(() => {
+                  connection.release();
+                  console.error('Invalid mining rate boost configuration');
+                  res.status(500).json({ message: 'Invalid mining rate boost configuration' });
+                });
+                return;
+              }
+
+              // Update the mining rate in the token_minne table
+              const updateMiningRateSql = 'UPDATE token_minne SET mining_rate = mining_rate + ? WHERE user_id = ?';
+              connection.query(updateMiningRateSql, [miningRateBoost, userId], (err) => {
+                if (err) {
+                  connection.rollback(() => {
+                    connection.release();
+                    console.error('Error updating mining rate:', err);
+                    res.status(500).json({ message: 'Failed to update mining rate' });
+                  });
+                  return;
+                }
+              });
+
+
+
+
               connection.commit(err => {
                 if (err) {
                   connection.rollback(() => {
