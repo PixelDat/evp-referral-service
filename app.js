@@ -314,7 +314,7 @@ app.post('/register-referral', verifyToken, checkAuth, (req, res) => {
             }
 
             const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
-            connection.query(updateUserPointsSql, [referralPoints, userId], (err) => {
+            connection.query(updateUserPointsSql, [referralPoints, referrerUserId], (err) => {
               if (err) {
                 connection.rollback(() => {
                   connection.release();
