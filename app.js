@@ -413,7 +413,7 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
     const userData = results[0]; // Assuming user_id is unique, there should only be one result.
     const refLink = `https://everpump.io/GenRegRef?refID=${userData.refID}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
-    const inviteFriendsMsgCondtruct = `Install Pump Milita on Solana \n using my Referral Code: ${userData.refID}  \n and get 100,000 $COIN tokens. Claim free tokens every 12 hours.  https://pumpmilitia.io/gameDownload`;
+    const inviteFriendsMsgCondtruct = `Install Pump Milita on Solana \n using my Referral Code: ${userData.refID}  \n and get 100,000 $PUMP tokens. Claim free tokens every 12 hours.  https://pumpmilitia.io/gameDownload`;
     const userReferralCode = "Referral Code: "+userData.refID;
 
     return res.status(200).json({ refLink, refMessage, inviteFriendsMsgCondtruct, userReferralCode });
