@@ -191,6 +191,31 @@ app.post('/reg-potential-referrals', async (req, res) => {
   });
 });
 
+app.get('/reg-potential-referrals-redirect', async (req, res) => {
+  const { _genID, _refID } = req.query;
+
+  // Input validation
+  if (!_genID || !_refID) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  // Assuming you have a function to sanitize input or using prepared statements
+  const sanitizedGenID = _genID; // Implement actual sanitization
+  const sanitizedRefID = _refID; // Implement actual sanitization
+
+  // Prepare the insert query
+  const insertQuery = `INSERT INTO potential_referrals (genID, refID, confirmed) VALUES (?, ?, false)`;
+
+  // Execute the query
+  pool.query(insertQuery, [sanitizedGenID, sanitizedRefID], (error, results) => {
+    if (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Failed to register potential referral', error: error.message });
+    }
+    res.redirect('https://play.google.com/store/apps/details?id=com.everpumpstudio.pumpmilitia');
+  });
+});
+
 
 app.post('/confirm-potential-referrals', verifyToken, checkAuth, async (req, res) => {
   const { _genID, _refID } = req.body;
