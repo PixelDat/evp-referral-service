@@ -638,6 +638,105 @@ app.post('/claim-challenge', verifyToken, checkAuth, async (req, res) => {
   });
 });
 
+app.get('/check-game-download-reward', verifyToken, checkAuth, async (req, res) => {
+  const userId = req.userId;  // This is set by the checkAuth middleware
+
+  const challengeId = 10;  // The specific challenge_id to check
+
+  // SQL query to check if the challenge is already claimed
+  const claimedChallengesSql = 'SELECT 1 FROM challenge_claims WHERE user_id = ? AND challenge_id = ?';
+  pool.query(claimedChallengesSql, [userId, challengeId], (error, results) => {
+    if (error) {
+      console.error('Error checking claimed challenges:', error);
+      return res.status(500).json({ status: false, message: 'Internal server error', error: error.message });
+    }
+
+    if (results.length > 0) {
+      return res.status(200).json({ status: true, message: 'Already claimed' });
+    } else {
+      return res.status(200).json({ status: false, message: 'Not claimed' });
+    }
+  });
+});
+
+app.post('/claim-game-download-reward', verifyToken, checkAuth, async (req, res) => {
+  const userId = req.userId;  // This is set by the checkAuth middleware
+  const challengeId = 10;  // The specific challenge_id to check
+  const rewardAmount = parseFloat(process.env.GAME_DOWNLOAD_REWARD);  // Amount to be rewarded from the environment variable
+
+  if (isNaN(rewardAmount)) {
+    return res.status(500).json({ status: false, message: 'Invalid reward amount configuration' });
+  }
+
+  // SQL query to check if the challenge is already claimed
+  const claimedChallengesSql = 'SELECT 1 FROM challenge_claims WHERE user_id = ? AND challenge_id = ?';
+  pool.query(claimedChallengesSql, [userId, challengeId], (error, results) => {
+    if (error) {
+      console.error('Error checking claimed challenges:', error);
+      return res.status(500).json({ status: false, message: 'Internal server error', error: error.message });
+    }
+
+    if (results.length > 0) {
+      return res.status(200).json({ status: false, message: 'Already claimed' });
+    } else {
+      // Start a transaction
+      pool.getConnection((err, connection) => {
+        if (err) {
+          console.error('Error getting connection from pool:', err);
+          return res.status(500).json({ status: false, message: 'Failed to connect to database' });
+        }
+
+        connection.beginTransaction(err => {
+          if (err) {
+            connection.release();
+            console.error('Error starting transaction:', err);
+            return res.status(500).json({ status: false, message: 'Failed to start transaction' });
+          }
+
+          // Update user's points
+          const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
+          connection.query(updateUserPointsSql, [rewardAmount, userId], (err) => {
+            if (err) {
+              connection.rollback(() => {
+                connection.release();
+                console.error('Error updating user points:', err);
+                res.status(500).json({ status: false, message: 'Failed to update user points' });
+              });
+              return;
+            }
+
+            // Insert new record into challenge_claims
+            const insertClaimSql = 'INSERT INTO challenge_claims (user_id, challenge_id, points) VALUES (?, ?, ?)';
+            connection.query(insertClaimSql, [userId, challengeId, rewardAmount], (err) => {
+              if (err) {
+                connection.rollback(() => {
+                  connection.release();
+                  console.error('Error inserting challenge claim:', err);
+                  res.status(500).json({ status: false, message: 'Failed to insert challenge claim' });
+                });
+                return;
+              }
+
+              connection.commit(err => {
+                if (err) {
+                  connection.rollback(() => {
+                    connection.release();
+                    console.error('Error committing transaction:', err);
+                    res.status(500).json({ status: false, message: 'Transaction commit failed' });
+                  });
+                  return;
+                }
+
+                connection.release();
+                res.status(201).json({ status: true, message: 'Game download reward claimed successfully' });
+              });
+            });
+          });
+        });
+      });
+    }
+  });
+});
 
 
 
