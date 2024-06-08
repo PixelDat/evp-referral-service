@@ -523,6 +523,123 @@ app.get('/list-referral-challenge', verifyToken, checkAuth, (req, res) => {
 });
 
 
+app.post('/claim-challenge', verifyToken, checkAuth, async (req, res) => {
+  const userId = req.userId;  // This is set by the checkAuth middleware
+  const { challenge_id } = req.body;
+
+  if (!challenge_id) {
+    return res.status(400).json({ status: false, message: 'Missing challenge_id' });
+  }
+
+  // Challenges definition
+  const challenges = [
+    {challenge_id: "1", challenge_title: "Refer 1 friend", amount: 3000, referralExpectation: 1},
+    {challenge_id: "2", challenge_title: "Refer 3 friends", amount: 50000, referralExpectation: 3},
+    {challenge_id: "3", challenge_title: "Refer 10 friends", amount: 200000, referralExpectation: 10},
+    {challenge_id: "4", challenge_title: "Refer 25 friends", amount: 250000, referralExpectation: 25},
+    {challenge_id: "5", challenge_title: "Refer 50 friends", amount: 300000, referralExpectation: 50},
+    {challenge_id: "6", challenge_title: "Refer 100 friends", amount: 500000, referralExpectation: 100},
+    {challenge_id: "7", challenge_title: "Refer 500 friends", amount: 2000000, referralExpectation: 500},
+    {challenge_id: "8", challenge_title: "Refer 1000 friends", amount: 2500000, referralExpectation: 1000},
+    {challenge_id: "9", challenge_title: "Refer 10000 friends", amount: 10000000, referralExpectation: 10000}
+  ];
+
+  // Find the challenge
+  const challenge = challenges.find(c => c.challenge_id === challenge_id);
+  if (!challenge) {
+    return res.status(400).json({ status: false, message: 'Invalid challenge_id' });
+  }
+
+  const { amount, referralExpectation } = challenge;
+
+  // SQL query to count the number of referrals by the referrer_user_id
+  const countRefereesSql = 'SELECT COUNT(*) AS totalReferees FROM referrals WHERE referrer_user_id = ?';
+
+  pool.query(countRefereesSql, [userId], (error, results) => {
+    if (error) {
+      console.error('Error fetching total number of referees:', error);
+      return res.status(500).json({ status: false, message: 'Internal server error', error: error.message });
+    }
+
+    const totalReferees = results[0].totalReferees;
+
+    if (totalReferees < referralExpectation) {
+      return res.status(400).json({ status: false, message: `You have not invited up to ${referralExpectation} friends` });
+    }
+
+    // SQL query to check if the challenge is already claimed
+    const claimedChallengesSql = 'SELECT 1 FROM challenge_claims WHERE user_id = ? AND challenge_id = ?';
+    pool.query(claimedChallengesSql, [userId, challenge_id], (claimError, claimResults) => {
+      if (claimError) {
+        console.error('Error checking claimed challenges:', claimError);
+        return res.status(500).json({ status: false, message: 'Internal server error', error: claimError.message });
+      }
+
+      if (claimResults.length > 0) {
+        return res.status(400).json({ status: false, message: 'Challenge already claimed' });
+      }
+
+      // Start a transaction
+      pool.getConnection((err, connection) => {
+        if (err) {
+          console.error('Error getting connection from pool:', err);
+          return res.status(500).json({ status: false, message: 'Failed to connect to database' });
+        }
+
+        connection.beginTransaction(err => {
+          if (err) {
+            connection.release();
+            console.error('Error starting transaction:', err);
+            return res.status(500).json({ status: false, message: 'Failed to start transaction' });
+          }
+
+          // Update user's points
+          const updateUserPointsSql = 'UPDATE users SET points = points + ? WHERE user_id = ?';
+          connection.query(updateUserPointsSql, [amount, userId], (err) => {
+            if (err) {
+              connection.rollback(() => {
+                connection.release();
+                console.error('Error updating user points:', err);
+                res.status(500).json({ status: false, message: 'Failed to update user points' });
+              });
+              return;
+            }
+
+            // Insert new record into challenge_claims
+            const insertClaimSql = 'INSERT INTO challenge_claims (user_id, challenge_id, points) VALUES (?, ?, ?)';
+            connection.query(insertClaimSql, [userId, challenge_id, amount], (err) => {
+              if (err) {
+                connection.rollback(() => {
+                  connection.release();
+                  console.error('Error inserting challenge claim:', err);
+                  res.status(500).json({ status: false, message: 'Failed to insert challenge claim' });
+                });
+                return;
+              }
+
+              connection.commit(err => {
+                if (err) {
+                  connection.rollback(() => {
+                    connection.release();
+                    console.error('Error committing transaction:', err);
+                    res.status(500).json({ status: false, message: 'Transaction commit failed' });
+                  });
+                  return;
+                }
+
+                connection.release();
+                res.status(201).json({ status: true, message: 'Challenge claimed successfully' });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
+
+
 
 
 // Health Check Endpoint
