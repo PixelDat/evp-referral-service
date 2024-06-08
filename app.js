@@ -465,6 +465,49 @@ app.get('/get-number-of-referees', verifyToken, checkAuth, (req, res) => {
   });
 });
 
+app.get('/list-referral-challenge', verifyToken, checkAuth, (req, res) => {
+  const userId = req.userId;  // This is set by the checkAuth middleware
+
+  // SQL query to count the number of referrals by the referrer_user_id
+  const countRefereesSql = 'SELECT COUNT(*) AS totalReferees FROM referrals WHERE referrer_user_id = ?';
+
+  pool.query(countRefereesSql, [userId], (error, results) => {
+    if (error) {
+      console.error('Error fetching total number of referees:', error);
+      return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+
+    // Assuming successful query execution, get the total number of referees
+    const totalReferees = results[0].totalReferees;
+    
+    // Function to calculate completion percentage
+    const calculateCompletion = (current, goal) => {
+      return Math.min((current / goal) * 100, 100).toFixed(2);
+    };
+
+    // Challenges definition
+    const challenges = [
+      {challenge_id: "1", challenge_title: "Refer 1 friend", amount: 3000, referralExpectation: 1},
+      {challenge_id: "2", challenge_title: "Refer 3 friends", amount: 50000, referralExpectation: 3},
+      {challenge_id: "3", challenge_title: "Refer 10 friends", amount: 200000, referralExpectation: 10},
+      {challenge_id: "4", challenge_title: "Refer 25 friends", amount: 250000, referralExpectation: 25},
+      {challenge_id: "5", challenge_title: "Refer 50 friends", amount: 300000, referralExpectation: 50},
+      {challenge_id: "6", challenge_title: "Refer 100 friends", amount: 500000, referralExpectation: 100},
+      {challenge_id: "7", challenge_title: "Refer 500 friends", amount: 2000000, referralExpectation: 500},
+      {challenge_id: "8", challenge_title: "Refer 1000 friends", amount: 2500000, referralExpectation: 1000},
+      {challenge_id: "9", challenge_title: "Refer 10000 friends", amount: 10000000, referralExpectation: 10000}
+    ];
+
+    // Map through challenges and add completion status
+    const responseChallenges = challenges.map(challenge => ({
+      ...challenge,
+      status: totalReferees >= challenge.referralExpectation ? "CLAIMED" : "UNCLAIMED",
+      completion: calculateCompletion(totalReferees, challenge.referralExpectation)
+    }));
+
+    res.json(responseChallenges);
+  });
+});
 
 
 
