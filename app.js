@@ -498,14 +498,27 @@ app.get('/list-referral-challenge', verifyToken, checkAuth, (req, res) => {
       {challenge_id: "9", challenge_title: "Refer 10000 friends", amount: 10000000, referralExpectation: 10000}
     ];
 
-    // Map through challenges and add completion status
-    const responseChallenges = challenges.map(challenge => ({
-      ...challenge,
-      status: totalReferees >= challenge.referralExpectation ? "CLAIMED" : "UNCLAIMED",
-      completion: calculateCompletion(totalReferees, challenge.referralExpectation)
-    }));
+    // SQL query to get claimed challenges by user
+    const claimedChallengesSql = 'SELECT challenge_id FROM challenge_claims WHERE user_id = ?';
+    
+    pool.query(claimedChallengesSql, [userId], (claimError, claimResults) => {
+      if (claimError) {
+        console.error('Error fetching claimed challenges:', claimError);
+        return res.status(500).json({ message: 'Internal server error', error: claimError.message });
+      }
 
-    res.json(responseChallenges);
+      // Extract claimed challenge IDs
+      const claimedChallengeIds = claimResults.map(result => result.challenge_id);
+
+      // Map through challenges and add completion status
+      const responseChallenges = challenges.map(challenge => ({
+        ...challenge,
+        status: claimedChallengeIds.includes(parseInt(challenge.challenge_id)) ? "CLAIMED" : "UNCLAIMED",
+        completion: calculateCompletion(totalReferees, challenge.referralExpectation)
+      }));
+
+      res.json(responseChallenges);
+    });
   });
 });
 
