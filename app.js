@@ -547,7 +547,7 @@ app.post('/claim-challenge', verifyToken, checkAuth, async (req, res) => {
   // Find the challenge
   const challenge = challenges.find(c => c.challenge_id === challenge_id);
   if (!challenge) {
-    return res.status(400).json({ status: false, message: 'Invalid challenge_id' });
+    return res.status(400).json({ status: false, message: 'Invalid challenge_id ' });
   }
 
   const { amount, referralExpectation } = challenge;
