@@ -471,7 +471,7 @@ app.get('/list-referred-users', verifyToken, checkAuth, (req, res) => {
   const userId = req.userId; // Set by checkAuth middleware
 
   const query = `
-    SELECT u.email, r.date_referred 
+    SELECT u.email, r.created_at 
     FROM users u
     JOIN referrals r ON u.user_id = r.referee_user_id
     WHERE r.referrer_user_id = ?
