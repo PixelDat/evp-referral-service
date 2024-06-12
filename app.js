@@ -465,6 +465,31 @@ app.get('/get-number-of-referees', verifyToken, checkAuth, (req, res) => {
   });
 });
 
+
+// endpoint to get the list of referred users
+app.get('/list-referred-users', verifyToken, checkAuth, (req, res) => {
+  const userId = req.userId; // Set by checkAuth middleware
+
+  const query = `
+    SELECT u.email, r.date_referred 
+    FROM users u
+    JOIN referrals r ON u.user_id = r.referee_user_id
+    WHERE r.referrer_user_id = ?
+  `;
+
+  pool.query(query, [userId], (error, results) => {
+    if (error) {
+      console.error('Error fetching referred users:', error);
+      return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+
+    res.json(results);
+  });
+});
+
+
+
+
 app.get('/list-referral-challenge', verifyToken, checkAuth, (req, res) => {
   const userId = req.userId;  // This is set by the checkAuth middleware
 
