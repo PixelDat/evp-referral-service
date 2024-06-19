@@ -473,7 +473,7 @@ app.get('/list-referred-users', verifyToken, checkAuth, (req, res) => {
   const query = `
     SELECT u.email, r.created_at 
     FROM users u
-    JOIN referrals r ON u.user_id = r.referee_user_id
+    JOIN referrals r ON u.user_id = r.user_id
     WHERE r.referrer_user_id = ?
   `;
 
@@ -486,6 +486,7 @@ app.get('/list-referred-users', verifyToken, checkAuth, (req, res) => {
     res.json(results);
   });
 });
+
 
 
 
