@@ -436,7 +436,7 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
     }
     
     const userData = results[0]; // Assuming user_id is unique, there should only be one result.
-    const refLink = `https://t.me/Pumpmilitia_Auth_bot?start=${userData.refID}`; // Assuming twitter_id is a field in your users table.
+    const refLink = `https://t.me/pumpmilitia_bot?start=${userData.refID}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
     
     const inviteFriendsMsgCondtruct = `💰 I installed Pump Militia on Solana and earned 100,000 $PUMP tokens. I'm mining more daily. Join me \n\n 🎮 App: https://pumpmilitia.io/gameDownload \n 💁🏻‍♂️ Referral Code:${userData.refID}`;
