@@ -439,7 +439,7 @@ app.get('/get-refLink', verifyToken, checkAuth, async (req, res) => {
     const refLink = `https://t.me/pumpmilitia_bot?start=${userData.refID}`; // Assuming twitter_id is a field in your users table.
     const refMessage = process.env.REF_MESSAGE;
     
-    const inviteFriendsMsgCondtruct = `https://t.me/pumpmilitia_bot?start=${userData.refID} \n\n Earn with me. Mine $PUMP coins on your phone and get the airdrop after listing. 100,000 Coins as a first-time gift!`;
+    const inviteFriendsMsgCondtruct = `\n\n\n Earn with me. Mine $PUMP coins on your phone and get the airdrop after listing. 100,000 Coins as a first-time gift!`;
     const userReferralCode = "Referral Code: "+userData.refID;
 
     return res.status(200).json({ refLink, refMessage, inviteFriendsMsgCondtruct, userReferralCode });
